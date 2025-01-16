@@ -124,8 +124,7 @@ Format the response as JSON with these exact keys:
                 analysis = json.loads(analysis_text)
                 
                 # Validate expected keys are present
-                expected_keys = {'summary', 'key_points', 'sentiment', 'topics', 
-                               'writing_style', 'target_audience'}
+                expected_keys = {'summary', 'key_points', 'topics'}
                 if not all(key in analysis for key in expected_keys):
                     raise ValueError("Missing required keys in analysis response")
                 
