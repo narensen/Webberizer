@@ -82,12 +82,10 @@ class GroqAnalyzer:
 {text}
 
 Provide a comprehensive analysis including:
-1. A concise summary (2-3 sentences)
-2. Key points (3-5 points)
-3. Sentiment analysis (positive/negative/neutral with explanation)
+1. A concise summary (5-7 sentences)
+2. Key points (4-6 points)
 4. Main topics discussed
 5. Writing style analysis
-6. Target audience assessment
 
 Format the response as JSON with these exact keys:
 - summary
@@ -100,7 +98,7 @@ Format the response as JSON with these exact keys:
                 self.api_url,
                 headers=self.headers,
                 json={
-                    "model": "llama-3.3-70b-versatile",  # Using Mixtral model
+                    "model": "llama-3.3-70b-versatile",  
                     "messages": [
                         {"role": "system", "content": "You are an expert text analyzer. Provide detailed, accurate analysis in JSON format."},
                         {"role": "user", "content": prompt}
