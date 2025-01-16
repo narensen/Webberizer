@@ -187,6 +187,4 @@ def analyze():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
-    if not GROQ_API_KEY:
-        raise ValueError("GROQ API key not found in environment variables")
-    app.run(debug=True)
+    app.run()
