@@ -4,22 +4,22 @@
     <title>Webberizer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @keyframes float {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0px); }
-        }
-
         @keyframes gradientBg {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        @keyframes blink {
+            0% { opacity: 0.2; }
+            20% { opacity: 1; }
+            100% { opacity: 0.2; }
         }
 
         .gradient-bg {
@@ -30,6 +30,23 @@
 
         .float-animation {
             animation: float 3s ease-in-out infinite;
+        }
+
+        .loading-dots {
+            display: inline-flex;
+            margin-left: 4px;
+        }
+
+        .loading-dots .dot {
+            animation: blink 1.4s infinite both;
+        }
+
+        .loading-dots .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading-dots .dot:nth-child(3) {
+            animation-delay: 0.4s;
         }
 
         .input-focus-animation {
@@ -53,6 +70,18 @@
             opacity: 1;
             transform: translateY(0);
         }
+
+        .hover-scale {
+            transition: transform 0.3s ease;
+        }
+
+        .hover-scale:hover {
+            transform: scale(1.02);
+        }
+
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body class="gradient-bg min-h-screen flex flex-col items-center justify-start">
@@ -66,7 +95,7 @@
             </p>
         </div>
 
-        <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 mb-8">
+        <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 mb-8 hover-scale">
             <form id="analyzeForm" class="space-y-6">
                 <div class="relative">
                     <input type="url" 
@@ -77,9 +106,15 @@
                            placeholder="Enter article URL (e.g., https://example.com/article)">
                 </div>
                 
-                <button type="submit" 
-                        class="w-full py-4 bg-black text-white rounded-xl hover:bg-gray-800 transform transition-all duration-300 hover:scale-102 active:scale-98">
-                    Analyze Article
+                <button id="analyzeButton"
+                        type="submit" 
+                        class="w-full py-4 bg-black text-white rounded-xl hover:bg-gray-800 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 disabled:opacity-80 disabled:cursor-wait">
+                    <span class="button-text">Analyze Article</span>
+                    <span class="loading-dots hidden">
+                        <span class="dot">.</span>
+                        <span class="dot">.</span>
+                        <span class="dot">.</span>
+                    </span>
                 </button>
             </form>
         </div>
@@ -91,76 +126,98 @@
         </div>
     </div>
 
-    <script>
-        document.getElementById('analyzeForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const resultsDiv = document.getElementById('results');
-            const contentDiv = document.getElementById('analysisContent');
+<!-- Replace the existing script section in your HTML file with this updated version -->
+<script>
+    document.getElementById('analyzeForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const button = document.getElementById('analyzeButton');
+        const buttonText = button.querySelector('.button-text');
+        const loadingDots = button.querySelector('.loading-dots');
+        const resultsDiv = document.getElementById('results');
+        const contentDiv = document.getElementById('analysisContent');
+        const url = document.getElementById('url').value;
+        
+        try {
+            resultsDiv.classList.add('hidden');
             
-            try {
-                const formData = new FormData(e.target);
-                resultsDiv.classList.add('hidden');
-                
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                contentDiv.innerHTML = `
-                    <div class="bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg">
-                        <div class="mb-8">
-                            <h3 class="text-2xl font-bold mb-4">Summary</h3>
-                            <p class="text-gray-700">${data.summary}</p>
-                        </div>
-                        
-                        <div class="mb-8">
-                            <h3 class="text-2xl font-bold mb-4">Key Points</h3>
-                            <ul class="space-y-2">
-                                ${data.key_points.map(point => `
-                                    <li class="flex items-start">
-                                        <span class="mr-2">•</span>
-                                        <span class="text-gray-700">${point}</span>
-                                    </li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                        
-                        <div class="mb-8">
-                            <h3 class="text-2xl font-bold mb-4">Topics</h3>
-                            <div class="flex flex-wrap gap-2">
-                                ${data.topics.map(topic => `
-                                    <span class="px-3 py-1 bg-black text-white rounded-full text-sm">
-                                        ${topic}
-                                    </span>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                resultsDiv.classList.remove('hidden');
-                setTimeout(() => {
-                    resultsDiv.classList.add('visible');
-                }, 100);
-
-            } catch (error) {
-                contentDiv.innerHTML = `
-                    <div class="bg-red-100/80 backdrop-blur-sm border border-red-400 text-red-700 px-6 py-4 rounded-xl">
-                        ${error.message}
-                    </div>
-                `;
-                resultsDiv.classList.remove('hidden');
-                setTimeout(() => {
-                    resultsDiv.classList.add('visible');
-                }, 100);
+            // Update button state
+            button.disabled = true;
+            buttonText.textContent = 'Analyzing';
+            loadingDots.classList.remove('hidden');
+            
+            // Make API call to Flask backend
+            const response = await fetch('/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `url=${encodeURIComponent(url)}`
+            });
+            
+            if (!response.ok) {
+                throw new Error('Try again or check the link (Social Media articles cannot be summarized)');
             }
-        };
-    </script>
+            
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            contentDiv.innerHTML = `
+                <div class="bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg">
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold mb-4">Summary</h3>
+                        <p class="text-gray-700">${data.summary}</p>
+                    </div>
+                    
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold mb-4">Key Points</h3>
+                        <ul class="space-y-2">
+                            ${data.key_points.map(point => `
+                                <li class="flex items-start">
+                                    <span class="mr-2">•</span>
+                                    <span class="text-gray-700">${point}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold mb-4">Topics</h3>
+                        <div class="flex flex-wrap gap-2">
+                            ${data.topics.map(topic => `
+                                <span class="px-3 py-1 bg-black text-white rounded-full text-sm">
+                                    ${topic}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            resultsDiv.classList.remove('hidden');
+            setTimeout(() => {
+                resultsDiv.classList.add('visible');
+            }, 100);
+
+        } catch (error) {
+            contentDiv.innerHTML = `
+                <div class="bg-red-100/80 backdrop-blur-sm border border-red-400 text-red-700 px-6 py-4 rounded-xl">
+                    ${error.message || 'An error occurred while analyzing the article.'}
+                </div>
+            `;
+            resultsDiv.classList.remove('hidden');
+            setTimeout(() => {
+                resultsDiv.classList.add('visible');
+            }, 100);
+        } finally {
+            // Reset button state
+            button.disabled = false;
+            buttonText.textContent = 'Analyze Article';
+            loadingDots.classList.add('hidden');
+        }
+    };
+</script>
 </body>
 </html>
