@@ -3,6 +3,10 @@
 <head>
     <title>Webberizer</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.263.1"></script>
     <style>
         @keyframes gradientBg {
             0% { background-position: 0% 50%; }
@@ -123,101 +127,198 @@
             <div id="analysisContent" class="space-y-6">
                 <!-- Results will appear here -->
             </div>
+            <div id="qa-section"></div>
         </div>
     </div>
 
-<!-- Replace the existing script section in your HTML file with this updated version -->
-<script>
-    document.getElementById('analyzeForm').onsubmit = async (e) => {
-        e.preventDefault();
-        const button = document.getElementById('analyzeButton');
-        const buttonText = button.querySelector('.button-text');
-        const loadingDots = button.querySelector('.loading-dots');
-        const resultsDiv = document.getElementById('results');
-        const contentDiv = document.getElementById('analysisContent');
-        const url = document.getElementById('url').value;
+<script type="text/babel">
+const ArticleQA = ({ articleText }) => {
+  const [question, setQuestion] = React.useState('');
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [conversations, setConversations] = React.useState([]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!question.trim() || !articleText) return;
+
+    setIsLoading(true);
+    const newQuestion = question;
+    setQuestion('');
+
+    setConversations(prev => [...prev, {
+      type: 'question',
+      content: newQuestion
+    }]);
+
+    try {
+      const response = await fetch('/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          question: newQuestion,
+          article_text: articleText
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to get answer');
+      
+      const data = await response.json();
+      
+      setConversations(prev => [...prev, {
+        type: 'answer',
+        content: data.answer
+      }]);
+    } catch (error) {
+      setConversations(prev => [...prev, {
+        type: 'error',
+        content: 'Sorry, I had trouble answering that question. Please try again.'
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg mt-8 hover-scale">
+      <div className="flex items-center gap-2 mb-6">
+        <span className="w-6 h-6">💬</span>
+        <h3 className="text-2xl font-bold">Ask Questions</h3>
+      </div>
+
+      <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
+        {conversations.map((msg, index) => (
+          <div
+            key={index}
+            className={`p-4 rounded-xl ${
+              msg.type === 'question'
+                ? 'bg-black text-white ml-8'
+                : msg.type === 'error'
+                ? 'bg-red-50 text-red-700'
+                : 'bg-gray-100'
+            }`}
+          >
+            <p>{msg.content}</p>
+          </div>
+        ))}
+      </div>
+
+      <form onSubmit={handleSubmit} className="relative">
+        <input
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Ask a question about the article..."
+          className="w-full p-4 pr-12 rounded-xl bg-white/50 backdrop-blur-sm text-lg focus:outline-none focus:ring-2 focus:ring-black"
+          disabled={isLoading}
+        />
+        <button
+          type="submit"
+          disabled={isLoading || !question.trim()}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-black/50 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? "..." : "→"}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+document.getElementById('analyzeForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const button = document.getElementById('analyzeButton');
+    const buttonText = button.querySelector('.button-text');
+    const loadingDots = button.querySelector('.loading-dots');
+    const resultsDiv = document.getElementById('results');
+    const contentDiv = document.getElementById('analysisContent');
+    const url = document.getElementById('url').value;
+    
+    try {
+        resultsDiv.classList.add('hidden');
         
-        try {
-            resultsDiv.classList.add('hidden');
-            
-            // Update button state
-            button.disabled = true;
-            buttonText.textContent = 'Analyzing';
-            loadingDots.classList.remove('hidden');
-            
-            // Make API call to Flask backend
-            const response = await fetch('/analyze', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `url=${encodeURIComponent(url)}`
-            });
-            
-            if (!response.ok) {
-                throw new Error('Try again or check the link (Social Media articles cannot be summarized)');
-            }
-            
-            const data = await response.json();
-
-            if (data.error) {
-                throw new Error(data.error);
-            }
-
-            contentDiv.innerHTML = `
-                <div class="bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg">
-                    <div class="mb-8">
-                        <h3 class="text-2xl font-bold mb-4">Summary</h3>
-                        <p class="text-gray-700">${data.summary}</p>
-                    </div>
-                    
-                    <div class="mb-8">
-                        <h3 class="text-2xl font-bold mb-4">Key Points</h3>
-                        <ul class="space-y-2">
-                            ${data.key_points.map(point => `
-                                <li class="flex items-start">
-                                    <span class="mr-2">•</span>
-                                    <span class="text-gray-700">${point}</span>
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                    
-                    <div class="mb-8">
-                        <h3 class="text-2xl font-bold mb-4">Topics</h3>
-                        <div class="flex flex-wrap gap-2">
-                            ${data.topics.map(topic => `
-                                <span class="px-3 py-1 bg-black text-white rounded-full text-sm">
-                                    ${topic}
-                                </span>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            resultsDiv.classList.remove('hidden');
-            setTimeout(() => {
-                resultsDiv.classList.add('visible');
-            }, 100);
-
-        } catch (error) {
-            contentDiv.innerHTML = `
-                <div class="bg-red-100/80 backdrop-blur-sm border border-red-400 text-red-700 px-6 py-4 rounded-xl">
-                    ${error.message || 'An error occurred while analyzing the article.'}
-                </div>
-            `;
-            resultsDiv.classList.remove('hidden');
-            setTimeout(() => {
-                resultsDiv.classList.add('visible');
-            }, 100);
-        } finally {
-            // Reset button state
-            button.disabled = false;
-            buttonText.textContent = 'Analyze Article';
-            loadingDots.classList.add('hidden');
+        // Update button state
+        button.disabled = true;
+        buttonText.textContent = 'Analyzing';
+        loadingDots.classList.remove('hidden');
+        
+        // Make API call to Flask backend
+        const response = await fetch('/analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `url=${encodeURIComponent(url)}`
+        });
+        
+        if (!response.ok) {
+            throw new Error('Try again or check the link (Social Media articles cannot be summarized)');
         }
-    };
+        
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        contentDiv.innerHTML = `
+            <div class="bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg">
+                <div class="mb-8">
+                    <h3 class="text-2xl font-bold mb-4">Summary</h3>
+                    <p class="text-gray-700">${data.summary}</p>
+                </div>
+                
+                <div class="mb-8">
+                    <h3 class="text-2xl font-bold mb-4">Key Points</h3>
+                    <ul class="space-y-2">
+                        ${data.key_points.map(point => `
+                            <li class="flex items-start">
+                                <span class="mr-2">•</span>
+                                <span class="text-gray-700">${point}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                
+                <div class="mb-8">
+                    <h3 class="text-2xl font-bold mb-4">Topics</h3>
+                    <div class="flex flex-wrap gap-2">
+                        ${data.topics.map(topic => `
+                            <span class="px-3 py-1 bg-black text-white rounded-full text-sm">
+                                ${topic}
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Render the QA component
+        const root = ReactDOM.createRoot(document.getElementById('qa-section'));
+        root.render(React.createElement(ArticleQA, { articleText: data.article_text }));
+        
+        resultsDiv.classList.remove('hidden');
+        setTimeout(() => {
+            resultsDiv.classList.add('visible');
+        }, 100);
+
+    } catch (error) {
+        contentDiv.innerHTML = `
+            <div class="bg-red-100/80 backdrop-blur-sm border border-red-400 text-red-700 px-6 py-4 rounded-xl">
+                ${error.message || 'An error occurred while analyzing the article.'}
+            </div>
+        `;
+        resultsDiv.classList.remove('hidden');
+        setTimeout(() => {
+            resultsDiv.classList.add('visible');
+        }, 100);
+    } finally {
+        // Reset button state
+        button.disabled = false;
+        buttonText.textContent = 'Analyze Article';
+        loadingDots.classList.add('hidden');
+    }
+};
 </script>
 </body>
 </html>

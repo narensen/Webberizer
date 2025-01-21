@@ -74,6 +74,37 @@ class GroqAnalyzer:
             "Content-Type": "application/json"
         }
 
+    def answer_question(self, text: str, question: str) -> str:
+        try:
+            prompt = f"""Based on this article:
+
+{text}
+
+Answer this question: {question}
+
+Provide a clear, concise answer based only on the information in the article."""
+
+            response = requests.post(
+                self.api_url,
+                headers=self.headers,
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful assistant who answers questions based solely on the provided article content."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 1024
+                }
+            )
+            
+            response.raise_for_status()
+            return response.json()['choices'][0]['message']['content']
+
+        except Exception as e:
+            logging.error(f"Error in question answering: {str(e)}")
+            raise
+
     def analyze_text(self, title: str, text: str) -> Dict:
         try:
             # Prepare the prompt for analysis
@@ -82,8 +113,8 @@ class GroqAnalyzer:
 {text}
 
 Provide a comprehensive analysis including:
-1. A concise summary (5-7 sentences)
-2. Key points (4-6 points)
+1. A concise summary 
+2. Key points
 4. Main topics discussed
 5. Writing style analysis
 
@@ -126,6 +157,8 @@ Format the response as JSON with these exact keys:
                 if not all(key in analysis for key in expected_keys):
                     raise ValueError("Missing required keys in analysis response")
                 
+                # Include the original text in the response for Q&A
+                analysis['article_text'] = text
                 return analysis
                 
             except json.JSONDecodeError as e:
@@ -149,7 +182,6 @@ Format the response as JSON with these exact keys:
 def home():
     return render_template('index.html')
 
-@app.route('/analyze', methods=['POST'])
 @app.route('/analyze', methods=['POST'])
 def analyze():
     try:
@@ -183,5 +215,28 @@ def analyze():
         logging.error(f"Error in analysis endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/ask', methods=['POST'])
+def ask_question():
+    try:
+        data = request.get_json()
+        question = data.get('question')
+        article_text = data.get('article_text')
+        
+        if not question:
+            return jsonify({'error': 'No question provided'}), 400
+        
+        if not article_text:
+            return jsonify({'error': 'No article text provided'}), 400
+
+        # Use GROQ to answer the question based on the article content
+        analyzer = GroqAnalyzer(GROQ_API_KEY)
+        response = analyzer.answer_question(article_text, question)
+        
+        return jsonify({'answer': response})
+
+    except Exception as e:
+        logging.error(f"Error in ask endpoint: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
